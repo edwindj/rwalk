@@ -11,6 +11,20 @@ get_nodes <- function(x){
   nodes
 }
 
+# ----- super simple
+d <-
+  "from, to, weight
+A1,B1,1
+B1,A1,1
+" |> fread()
+d[, weight := weight/sum(weight), by = .(from)]
+d
+
+d |> fwrite("data/d0_edges.csv")
+d |> get_nodes() |> fwrite("data/d0_nodes.csv")
+
+# ---- simple
+
 d <-
 "from, to, weight
 A1,A2,1

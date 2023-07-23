@@ -1,12 +1,21 @@
 library(data.table)
 
 node_stat <- function(nodes){
-  d <- CJ(id = nodes$id, exposed_to = nodes$type, unique = TRUE)
-  d$exposure <- nodes[ .(d$id)
+  d <- CJ( id = nodes$id
+         , exposed_to = nodes$type
+         , exposure = 0
+         , unique = TRUE
+         )
+  
+  d$delta <- nodes[ .(d$id)
                      , ifelse(type == d$exposed_to, weight, 0)
                      , on=.(id)
                      ]
   d
+}
+
+plot_graph <- function(e){
+  e |> igraph::graph_from_data_frame() |> plot()
 }
 
 show_fractions <- function(n){
@@ -23,35 +32,29 @@ rstep_edwin <- function(alpha = 0.85, e, n, step = 1){
   e_w <- n[ e
           , .( id = from # we calculate this for the from node
              , exposed_to
-             , exposure = (1-alpha) * weight * exposure 
+             , delta_old = delta
+             , delta = i.weight * delta
+             , weight
+             # , exposure
+             , to
              )
           , on = .(id = to) # but we aggregate for the to node
           , nomatch = NA
           ]
+  e_w
   n_w <- e_w[
-            , .( exposure = sum(exposure)
+            , .( delta = sum(delta)
+               # , exposure = first(exposure)
                , n = .N
                )
             , by = .(id, exposed_to)
             ]
   
-  # n_w[, exposure := exposure/sum(exposure), by = .(id)]
-  ns <- n[ .(n_w[, .(id, exposed_to)])
-         , .(old = exposure, old_n=n)
-         , on =.(id, exposed_to)
-         ]
-  n_w$old <- ns$old
-  n_w$old_n <- ns$old_n
+  n_w$exposure <- n[n_w[,.(id, exposed_to)], exposure, on=.(id, exposed_to)]
   
-  if (step > 1){
-    n_w[, exposure := exposure + old]
-    n_w[, n := n * old_n]
-  }
+  n_w[, exposure := exposure + (1-alpha)*delta]
+  n_w[, delta := alpha*delta]
   n_w
-  
-  # if (step > 1){
-  # } 
-  # n_w[, .(n = sum(n)), by = .(id, exposed_to)]
 }
 
 nodes <- fread("data/d1_nodes.csv")
@@ -60,10 +63,12 @@ edges <- fread("data/d1_edges.csv")
 # nodes <- fread("data/d3_nodes.csv")
 # edges <- fread("data/d3_edges.csv")
 
-edges[, weight := weight/sum(weight), by  = .(to)]
+edges[, weight := weight/sum(weight), by  = .(from)]
 
 n <- node_stat(nodes)
 e <- edges
+
+tol <- 1e-5
 
 for (step in 1:20){
   message("## step: ", step)
@@ -72,6 +77,12 @@ for (step in 1:20){
             , alpha = 0.4
             , step = step
             )
+  
+  if (max(n$delta) < tol){
+    message("Stopped, seems converged")
+    break
+  }
   n |> show_fractions() |> print()
   message("##\n")
 }
+ 
