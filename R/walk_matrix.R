@@ -4,12 +4,12 @@ library(Matrix)
 node_matrix <- function(nodes, edges){
   n <- nodes[, .(id = factor(id), type = factor(type), weight)]
   lev_n <- levels(n$id)
-  
+
   N <- sparseMatrix( n$id
                    , n$type
                    , x = n$weight
-                   , dimnames = list(levels(n$id), levels(n$type))) 
-  
+                   , dimnames = list(levels(n$id), levels(n$type)))
+
   e <- edges[, .( from = factor(from, levels=lev_n)
                 , to = factor(to, levels=lev_n)
                 , weight
@@ -55,19 +55,19 @@ rstep_edwin <- function(alpha = 0.85, e, n, step = 1){
                )
             , by = .(id, exposed_to)
             ]
-  
+
   n_w$exposure <- n[n_w[,.(id, exposed_to)], exposure, on=.(id, exposed_to)]
-  
+
   n_w[, exposure := exposure + (1-alpha)*delta]
   n_w[, delta := alpha*delta]
   n_w
 }
 
-nodes <- fread("data/d1_nodes.csv")
-edges <- fread("data/d1_edges.csv")
+nodes <- fread("data-raw/d1_nodes.csv")
+edges <- fread("data-raw/d1_edges.csv")
 
-# nodes <- fread("data/d3_nodes.csv")
-# edges <- fread("data/d3_edges.csv")
+# nodes <- fread("data-raw/d3_nodes.csv")
+# edges <- fread("data-raw/d3_edges.csv")
 
 edges[, weight := weight/sum(weight), by  = .(from)]
 
@@ -83,7 +83,7 @@ for (step in 1:20){
             , alpha = 0.4
             , step = step
             )
-  
+
   if (max(n$delta) < tol){
     message("Stopped, seems converged")
     break
@@ -91,4 +91,3 @@ for (step in 1:20){
   n |> show_fractions() |> print()
   message("##\n")
 }
- 

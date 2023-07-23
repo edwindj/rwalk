@@ -25,25 +25,25 @@ rstep_jan <- function(alpha = 0.85, e, n, step = 1){
           ]
   n_w <- e_w[
            , .( n = sum(n)
-              # , nsum = first(nsum) + (1-alpha) * sum(n) 
+              # , nsum = first(nsum) + (1-alpha) * sum(n)
               )
            , by = .(id, exposed_to)
           ]
   setkey(n, id, exposed_to)
   n_w$nsum <- n[(n_w[,.(id, exposed_to)]),n]
-  
+
   n_w[, n := alpha * n]
   n_w
   # if (step > 1){
-  # } 
+  # }
   # n_w[, .(n = sum(n)), by = .(id, exposed_to)]
 }
 
-nodes <- fread("data/d1_nodes.csv")
-edges <- fread("data/d1_edges.csv")
+nodes <- fread("data-raw/d1_nodes.csv")
+edges <- fread("data-raw/d1_edges.csv")
 
-# nodes <- fread("data/d3_nodes.csv")
-# edges <- fread("data/d3_edges.csv")
+# nodes <- fread("data-raw/d3_nodes.csv")
+# edges <- fread("data-raw/d3_edges.csv")
 
 edges[, weight := weight/sum(weight), by  = .(from)]
 
