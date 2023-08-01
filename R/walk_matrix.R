@@ -63,31 +63,31 @@ rstep_edwin <- function(alpha = 0.85, e, n, step = 1){
   n_w
 }
 
-nodes <- fread("data-raw/d1_nodes.csv")
-edges <- fread("data-raw/d1_edges.csv")
-
-# nodes <- fread("data-raw/d3_nodes.csv")
-# edges <- fread("data-raw/d3_edges.csv")
-
-edges[, weight := weight/sum(weight), by  = .(from)]
-
-n <- node_stat(nodes)
-e <- edges
-
-tol <- 1e-5
-
-for (step in 1:20){
-  message("## step: ", step)
-  n <- rstep_edwin( e = e
-            , n = n
-            , alpha = 0.4
-            , step = step
-            )
-
-  if (max(n$delta) < tol){
-    message("Stopped, seems converged")
-    break
-  }
-  n |> show_fractions() |> print()
-  message("##\n")
-}
+# nodes <- fread("data-raw/d1_nodes.csv")
+# edges <- fread("data-raw/d1_edges.csv")
+#
+# # nodes <- fread("data-raw/d3_nodes.csv")
+# # edges <- fread("data-raw/d3_edges.csv")
+#
+# edges[, weight := weight/sum(weight), by  = .(from)]
+#
+# n <- node_stat(nodes)
+# e <- edges
+#
+# tol <- 1e-5
+#
+# for (step in 1:20){
+#   message("## step: ", step)
+#   n <- rstep_edwin( e = e
+#             , n = n
+#             , alpha = 0.4
+#             , step = step
+#             )
+#
+#   if (max(n$delta) < tol){
+#     message("Stopped, seems converged")
+#     break
+#   }
+#   n |> show_fractions() |> print()
+#   message("##\n")
+# }
