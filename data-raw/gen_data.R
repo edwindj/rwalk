@@ -73,18 +73,21 @@ d3 |> get_nodes() |> fwrite("data-raw/d3_nodes.csv")
 # ---- large
 
 set.seed(1)
-N <- 40
-M <- floor(sqrt(N)) * N
+N <- 4e5
+
+250 *  N
+M <- floor(log(N)) * N
 
 tpe <- sample(c("A", "B"), size = N, replace = TRUE, prob=c(.4, .6))
 id <- factor(paste0(tpe, seq_len(N)))
 edges <- data.table( from = sample(id, size = M, replace = TRUE)
                    , to = sample(id, size = M, replace = TRUE)
                    , weight = 1
-                   ) |>
-  unique()
+                   )
+# |>
+#   unique()
 
-edges <- edges[from != to, ]
+edges <- edges[from != to, ] |> unique()
 edges <- rbind(edges, edges[,.(from = to, to = from, weight)])
 edges[, weight := weight/sum(weight), by = .(from)]
 
@@ -93,5 +96,12 @@ nodes <- data.table( id = id
                    , weight = 1
                    )
 e <- edges
-(w <- rwalk(e, nodes, alpha = 0.4))
-w$exposure
+
+system.time({
+  w <- rwalk(e, nodes, alpha = 0.4, verbose = TRUE, max_steps = 2)
+})
+
+
+system.time({
+  w2 <- rwalk_matrix(e, nodes, alpha = 0.4, verbose = TRUE)
+})

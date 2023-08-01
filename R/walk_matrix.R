@@ -5,18 +5,35 @@ node_matrix <- function(nodes, edges){
   n <- nodes[, .(id = factor(id), type = factor(type), weight)]
   lev_n <- levels(n$id)
 
-  N <- sparseMatrix( n$id
+  D <- sparseMatrix( n$id
                    , n$type
                    , x = n$weight
+                   , dims = c(nlevels(n$id), nlevels(n$type))
                    , dimnames = list(levels(n$id), levels(n$type)))
+
+  X <- sparseMatrix( i = integer()
+                   , j = integer()
+                   , x = double()
+                   , dims = c(nlevels(n$id), nlevels(n$type))
+                   , dimnames = list(levels(n$id), levels(n$type))
+                   )
+
+  X_step <- X
 
   e <- edges[, .( from = factor(from, levels=lev_n)
                 , to = factor(to, levels=lev_n)
                 , weight
                 )]
-  M <- sparseMatrix(e$to,e$from, x = e$weight, dimnames = list(to=lev_n, from=lev_n))
-  list( N = N
+
+  M <- sparseMatrix( i = e$to
+                   , j = e$from
+                   , x = e$weight
+                   , dimnames = list(to=lev_n, from=lev_n)
+                   )
+  list( D = D
       , M = M
+      , X = X
+      , X_step = X_step
   )
 }
 
@@ -24,70 +41,91 @@ plot_graph <- function(e){
   e |> igraph::graph_from_data_frame() |> plot()
 }
 
-show_fractions <- function(n){
-  f <- n[, .(f = (exposure/sum(exposure)) |> round(2), exposed_to)
-         , by = .(id)
-         ]
-  message("n:")
-  print(n)
-  message("fractions:")
-  dcast(f, id ~ exposed_to, value.var = "f", fill = 0)
+#' @export
+#' @param edges data.frame with edges: from,to,weight
+#' @param nodes data.frame with nodes: id, weight
+#' @param alpha stopping probability
+#' @param max_steps `integer` with the maximum number of steps
+#' @param tolerance `numeric`
+#' @import data.table
+rwalk_matrix <- function( edges
+                        , nodes
+                        , alpha = 0.85
+                        , max_steps = ceiling(log(tolerance)/log(alpha))
+                        , tolerance = 1e-5
+                        , verbose = TRUE
+){
+  if (verbose){
+    message("settings:")
+    print(list(alpha = alpha, max_steps = max_steps, tolerance = tolerance))
+  }
+  l <- node_matrix(nodes, edges)
+
+  for (step in seq_len(max_steps)){
+    if (verbose) message("## step: ", step)
+    l <- rstep_matrix( l = l
+                     , alpha = alpha
+                     , step = step
+                     )
+
+
+    if (verbose){
+      l |> print()
+      message("##\n")
+    }
+
+    if (max(l$X_step, na.rm = TRUE) < tolerance){
+      if (verbose) message("Stopped at step ",step,", seems converged")
+      break
+    }
+  }
+
+  exposure_long <- l$X |> sparse_to_dt()
+  exposure <- l$X |> as.matrix() |> as.data.table()
+
+
+  list(
+    X = l$X,
+    exposure = exposure,
+    exposure_long = exposure_long,
+    D = l$D,
+    steps = l$step
+  )
 }
 
-rstep_edwin <- function(alpha = 0.85, e, n, step = 1){
-  e_w <- n[ e
-          , .( id = from # we calculate this for the from node
-             , exposed_to
-             , delta_old = delta
-             , delta = i.weight * delta
-             , weight
-             # , exposure
-             , to
-             )
-          , on = .(id = to) # but we aggregate for the to node
-          , nomatch = NA
-          ]
-  e_w
-  n_w <- e_w[
-            , .( delta = sum(delta)
-               # , exposure = first(exposure)
-               , n = .N
-               )
-            , by = .(id, exposed_to)
+rstep_matrix <- function(alpha = 0.85, l, step = 1){
+  # current D
+
+  D_step <- l$M %*% l$D
+
+  X <- l$X + (1-alpha)*D_step
+  D <- alpha * D_step
+
+  list( X = X
+      , D = D
+      , M = l$M
+      , X_step  = (1-alpha)*D_step
+      , step = step
+      )
+}
+
+sparse_to_dt <- function(X){
+  s <- Matrix::summary(X) |> as.data.frame()
+  setDT(s)
+
+  # faster way of creating a factor
+  nid <- seq_len(nrow(X))
+  levels(nid) <- rownames(X)
+  class(nid) <- "factor"
+
+  ntype <- seq_len(ncol(X))
+  levels(ntype) <- colnames(X)
+  class(ntype) <- "factor"
+
+  d <- s[, .( id = nid[i]
+            , exposed_to = ntype[j]
+            , exposure = x)
             ]
-
-  n_w$exposure <- n[n_w[,.(id, exposed_to)], exposure, on=.(id, exposed_to)]
-
-  n_w[, exposure := exposure + (1-alpha)*delta]
-  n_w[, delta := alpha*delta]
-  n_w
+  setkey(d, id, exposed_to)
+  d
 }
-
-# nodes <- fread("data-raw/d1_nodes.csv")
-# edges <- fread("data-raw/d1_edges.csv")
-#
-# # nodes <- fread("data-raw/d3_nodes.csv")
-# # edges <- fread("data-raw/d3_edges.csv")
-#
-# edges[, weight := weight/sum(weight), by  = .(from)]
-#
-# n <- node_stat(nodes)
-# e <- edges
-#
-# tol <- 1e-5
-#
-# for (step in 1:20){
-#   message("## step: ", step)
-#   n <- rstep_edwin( e = e
-#             , n = n
-#             , alpha = 0.4
-#             , step = step
-#             )
-#
-#   if (max(n$delta) < tol){
-#     message("Stopped, seems converged")
-#     break
-#   }
-#   n |> show_fractions() |> print()
-#   message("##\n")
-# }
