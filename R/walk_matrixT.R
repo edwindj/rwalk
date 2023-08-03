@@ -1,8 +1,11 @@
 library(data.table)
 library(Matrix)
 
-node_matrix <- function(nodes, edges){
-  n <- nodes[, .(id = factor(id), type = factor(type), weight)]
+node_matrixT <- function(nodes, edges){
+  n <- nodes[, .( id = factor(id)
+                , type = factor(type) |> addNA(ifany = TRUE)
+                , weight
+                )]
 
   n_id <- nrow(n)
   n_types <- nlevels(n$type)
@@ -11,10 +14,10 @@ node_matrix <- function(nodes, edges){
   N <- length(lev_n)
 
   X <- matrix(0
-             , nrow = n_id
-             , ncol = n_types
-             , dimnames = list(id = n$id, exposed_to = levels(n$type))
-             )
+              , nrow = n_id
+              , ncol = n_types
+              , dimnames = list(id = n$id, exposed_to = levels(n$type))
+  )
 
   D <- X
   D[cbind(seq_len(n_id), n$type)] <- 1
@@ -26,8 +29,8 @@ node_matrix <- function(nodes, edges){
                 , weight
                 )]
 
-  M <- sparseMatrix( i = e$from
-                   , j = e$to
+  M <- sparseMatrix( i = e$to
+                   , j = e$from
                    , x = e$weight
                    , dims = c(N, N)
                    , dimnames = list(from=lev_n, to=lev_n)
@@ -39,9 +42,6 @@ node_matrix <- function(nodes, edges){
   )
 }
 
-plot_graph <- function(e){
-  e |> igraph::graph_from_data_frame() |> plot()
-}
 
 #' @export
 #' @param edges data.frame with edges: from,to,weight
@@ -50,7 +50,7 @@ plot_graph <- function(e){
 #' @param max_steps `integer` with the maximum number of steps
 #' @param tolerance `numeric`
 #' @import data.table
-rwalk_matrix <- function( edges
+rwalk_matrixT <- function( edges
                         , nodes
                         , alpha = 0.85
                         , max_steps = ceiling(log(tolerance)/log(alpha))
@@ -61,11 +61,11 @@ rwalk_matrix <- function( edges
     message("settings:")
     print(list(alpha = alpha, max_steps = max_steps, tolerance = tolerance))
   }
-  l <- node_matrix(nodes, edges)
+  l <- node_matrixT(nodes, edges)
 
   for (step in seq_len(max_steps)){
     if (verbose) message("## step: ", step)
-    l <- rstep_matrix( l = l
+    l <- rstep_matrixT( l = l
                      , alpha = alpha
                      , step = step
                      )
@@ -82,27 +82,29 @@ rwalk_matrix <- function( edges
     }
   }
 
-  exposure <- l$X |> as.matrix() |>  round(3) |> as.data.table()
+  exposure <- cbind( id = rownames(l$X)
+                   , l$X |> as.matrix() |> as.data.table()
+  )
 
 
   list(
-    X = l$X,
+    X = l$X |> as.matrix(),
     exposure = exposure,
     D = l$D,
-    steps = l$step,
-    max_diff= l$max_diff
+    max_diff = l$max_diff,
+    steps = l$step
   )
 }
 
-rstep_matrix <- function(alpha = 0.85, l, step = 1){
+rstep_matrixT <- function(alpha = 0.85, l, step = 1){
   # current D
 
-  D_step <- l$M %*% l$D
+  D_step <- Matrix::crossprod(l$M, l$D)# |> as.matrix()
 
-  X <- l$X + (1-alpha)*D_step
+  X <- l$X + (1-alpha) * D_step
   D <- alpha * D_step
 
-  max_diff <- (1-alpha)* max(D_step)
+  max_diff <- (1-alpha) * max(D_step)
 
   list( X = X
       , D = D

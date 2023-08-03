@@ -77,8 +77,9 @@ N <- 4e5
 
 250 *  N
 M <- floor(log(N)) * N
+n_types <- seq_len(3)
 
-tpe <- sample(c("A", "B"), size = N, replace = TRUE, prob=c(.4, .6))
+tpe <- sample(LETTERS[n_types], size = N, replace = TRUE, prob=n_types)
 id <- factor(paste0(tpe, seq_len(N)))
 edges <- data.table( from = sample(id, size = M, replace = TRUE)
                    , to = sample(id, size = M, replace = TRUE)
@@ -95,13 +96,32 @@ nodes <- data.table( id = id
                    , type = tpe
                    , weight = 1
                    )
-e <- edges
+
+edges |>
+  fwrite(sprintf("data-raw/d_%#d_edges.csv", N))
+
+nodes |>
+  fwrite(sprintf("data-raw/d_%#d_nodes.csv", N))
+
+
+# system.time({
+#   w <- rwalk(edges, nodes, alpha = 0.4, verbose = TRUE, max_steps = 2)
+# })
+
 
 system.time({
-  w <- rwalk(e, nodes, alpha = 0.4, verbose = TRUE, max_steps = 2)
+  w2 <- rwalk_matrix(edges, nodes, alpha = 0.4, verbose = FALSE)
 })
-
 
 system.time({
-  w2 <- rwalk_matrix(e, nodes, alpha = 0.4, verbose = TRUE)
+  w3 <- rwalk_matrixT(edges, nodes, alpha = 0.4, verbose = FALSE)
 })
+
+nas <- sample(N, 0.05 * N)
+nodes$type[nas] <- NA_character_
+
+system.time({
+  w3 <- rwalk_matrixT(edges, nodes, alpha = 0.4, verbose = FALSE)
+})
+
+w3$exposure

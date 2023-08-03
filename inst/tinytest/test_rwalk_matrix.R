@@ -25,7 +25,7 @@ rw <- rwalk_matrix(edges, nodes, alpha = 0.4, max_steps = 1, verbose = FALSE)
 expect_equal(rw$exposure$type |> as.character(), c("B", "A"))
 expect_equal(rw$exposure$exposure, c(0.6, 0.6))
 
-rw <- rwalk_matrix(edges, nodes, alpha = 0.4, verbose = TRUE)
+rw <- rwalk_matrix(edges, nodes, alpha = 0.99, verbose = TRUE)
 rw
 expect_equal(rw$exposure_avg$exposure, rep(0.5, 2))
 rw$fraction
