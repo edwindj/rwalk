@@ -3,9 +3,12 @@ library(Matrix)
 
 node_matrixT <- function(nodes, edges){
   n <- nodes[, .( id = factor(id)
-                , type = factor(type) |> addNA(ifany = TRUE)
+                , type = factor(type)
                 , weight
                 )]
+
+  n_id <- nrow(n)
+
 
   n_id <- nrow(n)
   n_types <- nlevels(n$type)
@@ -20,6 +23,30 @@ node_matrixT <- function(nodes, edges){
   )
 
   D <- X
+
+  type_missing <- is.na(n$type)
+  if (any(type_missing)){
+    n$weight[type_missing] <- 0
+    n_m <- n[!is.na(type), .(n = .N, w = sum(weight, na.rm = TRUE)), by = .(type)]
+    n_m[, w_fraction:= w/sum(w)]
+    n_m[, expected := w_fraction * n_id]
+    n_m[, w_missing:= expected - n]
+
+    # TODO check if w_missing is not negative...
+    if (any(n_m$w_missing < 0)){
+      warning("Weight ratio is in conflict with the found number of records.
+w_missing, the number of missing records for that 'category' should be non-negative'.
+Please fix the weights.
+")
+
+      print(n_m)
+      n_m[ w_missing < 0, w_missing := 0]
+    }
+
+    n_m[, f_w := w_missing/sum(w_missing)]
+    n_m
+  }
+
   D[cbind(seq_len(n_id), n$type)] <- 1
 
   X_step <- X

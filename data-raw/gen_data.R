@@ -117,11 +117,39 @@ system.time({
   w3 <- rwalk_matrixT(edges, nodes, alpha = 0.4, verbose = FALSE)
 })
 
-nas <- sample(N, 0.05 * N)
-nodes$type[nas] <- NA_character_
+nodes[, p := runif(.N)]
+nodes[type == "A", ntype := ifelse(p < 0.06, NA_character_, type)]
+nodes[type == "B", ntype := ifelse(p < 0.04, NA_character_, type)]
+nodes[type == "C", ntype := ifelse(p < 0.02, NA_character_, type)]
+
+nodes[is.na(ntype), weight := 0]
+nodes[, weight := .N/sum(weight), by = .(type)]
+nodes[, type := ntype]
 
 system.time({
   w3 <- rwalk_matrixT(edges, nodes, alpha = 0.4, verbose = FALSE)
 })
 
-w3$exposure
+library(ggplot2)
+
+w3$exposure |>
+  melt(id.vars = "id", variable.name = "exposed_to") |>
+  ggplot() +
+  geom_freqpoly(aes(x = value, col = exposed_to), binwidth=0.01)
+
+w3$exposure |>
+  melt(id.vars = "id", variable.name = "exposed_to") |>
+  ggplot() +
+  geom_histogram(aes(x = value, fill = exposed_to), binwidth=0.01) +
+  facet_wrap(~exposed_to)
+
+d <- w3$exposure |>
+  melt(id.vars = "id", variable.name = "exposed_to")
+
+d[exposed_to != "V4", .(sv = value / sum(value), value, exposed_to), by = .(id)] |>
+  ggplot() +
+  geom_freqpoly(aes(x = sv, col = exposed_to), binwidth=0.01)
+
+d[exposed_to != "V4", .(sv = value / sum(value), value, exposed_to), by = .(id)][
+  , .(sv = 6* mean(sv)), by = .(exposed_to)
+]
